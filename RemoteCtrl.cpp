@@ -18,20 +18,7 @@ CWinApp theApp;
 
 using namespace std;
 
-typedef struct file_info {
-    file_info() {
-        isInvalid = false;
-        isDirectory = -1;
-        hasNext = true;
-        memset(str_filename, 0, 256);
-    }
-    bool isInvalid;
-    bool isDirectory;
-    bool hasNext;  //解决文件极多，用户得不到反馈的情况。
-    char str_filename[256];
 
-
-}FILEINFO,*PFILEINFO;
 // 检查磁盘信息
 int makeDriverInfo() {
     std::string result;
@@ -132,6 +119,112 @@ int download_file() {
     return 0;
 }
 
+// 鼠标操作
+int mouseEvent() {
+    MOUSEEVENT mouse;
+    if (CServerSocket::getInstance()->getMouseEvent(mouse)) {
+        DWORD flags = 0;
+        switch (mouse.button) {
+        case 0: //左键
+            flags = 1;
+            break;
+        case 1: //右键
+            flags = 2;
+            break;
+        case 2: //中键
+            flags = 4;
+            break;
+        case 3: //纯移动，无按键
+            flags = 8;
+        }
+        if(flags!=8){ SetCursorPos(mouse.pt.x, mouse.pt.y); }  //没有按键就不执行设置鼠标位置了。
+        switch (mouse.action) {
+        case 0: //单击
+            flags |= 0x10;
+            break;
+        case 1: //双击
+            flags |= 0x20;
+            break;
+        case 2: //按下
+            flags |= 0x40;
+            break;
+        case 3: //放开
+            flags |= 0x80;
+            break;
+        default: break;  // 处理无按键的情况
+        }
+
+        switch (flags) {
+
+        case 0x11: // 左键单击 (Left Click: 1 | 0x10)
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x21: // 左键双击 (Left Double Click: 1 | 0x20)
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x41: // 左键按下 (Left Down: 1 | 0x40)
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x81: // 左键放开 (Left Up: 1 | 0x80)
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+
+        case 0x12: // 右键单击 (Right Click: 2 | 0x10)
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x22: // 右键双击 (Right Double Click: 2 | 0x20)
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x42: // 右键按下 (Right Down: 2 | 0x40)
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x82: // 右键放开 (Right Up: 2 | 0x80)
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+
+        case 0x14: // 中键单击 (Middle Click: 4 | 0x10)
+            mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x24: // 中键双击 (Middle Double Click: 4 | 0x20)
+            mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+            mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x44: // 中键按下 (Middle Down: 4 | 0x40)
+            mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+            break;
+        case 0x84: // 中键放开 (Middle Up: 4 | 0x80)
+            mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+            break;
+
+        case 0x08: // 纯移动 (Move: 8)
+            mouse_event(MOUSEEVENTF_MOVE, mouse.pt.x, mouse.pt.y, 0, GetMessageExtraInfo());
+            break;
+
+        default:
+            break;
+        }
+
+        CPacket packet(4, NULL, 0);
+        CServerSocket::getInstance()->getInstance()->sendByte(packet);
+
+    }
+    else {
+        OutputDebugString(_T("获取鼠标操作参数失败"));
+        return -1;
+    }
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -163,6 +256,8 @@ int main()
             case 4:  //下载文件
                 download_file();
                 break;
+            case 5: //鼠标操作
+                mouseEvent();
             }
             // TODO: 在此处为应用程序的行为编写代码。
             //CServerSocket* p_server = CServerSocket::getInstance();

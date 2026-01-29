@@ -4,6 +4,36 @@
 #include <iomanip> // 必须引入这个头文件用于 hex, setw
 #include <windows.h> // OutputDebugStringA 需要此头文件
 #include <stdio.h>   // snprintf 需要此头文件
+
+// 定义文件信息
+typedef struct file_info {
+	file_info() {
+		isInvalid = false;
+		isDirectory = -1;
+		hasNext = true;
+		memset(str_filename, 0, 256);
+	}
+	bool isInvalid;
+	bool isDirectory;
+	bool hasNext;  //解决文件极多，用户得不到反馈的情况。
+	char str_filename[256];
+
+
+}FILEINFO, * PFILEINFO;
+
+// 定义鼠标事件
+typedef struct mouse_event {
+	mouse_event() {
+		action = 0;
+		button = -1;  //0左，1右，2中
+		pt.x = 0;
+		pt.y = 0;
+	}
+	WORD action; //点击，移动，双击
+	WORD button; //左键，右键，中键
+	POINT pt;  //坐标，包含long X/Y
+}MOUSEEVENT, * PMOUSEEVENT;
+
 class CPacket {
 
 public:
@@ -206,11 +236,18 @@ public:
 
 	bool getFilePath(std::string &str_path) {
 		//2表示获取目录文件，3表示打开文件
-		if (m_packet.s_command == 2 || m_packet.s_command == 3) {
+		if (m_packet.s_command == 2 || m_packet.s_command == 3 || m_packet.s_command == 4) {
 			str_path = m_packet.str_data;
 			return true;
 		}
 		return false; //拒绝其他command非法使用该接口
+	}
+
+	bool getMouseEvent(MOUSEEVENT & mouse) {
+		if (m_packet.s_command == 5) {
+			memcpy(& mouse, m_packet.data(), sizeof(mouse));
+			return true;
+		}
 	}
 
 private:
