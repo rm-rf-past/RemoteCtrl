@@ -47,7 +47,7 @@ public:
 		s_command = command;
 		str_data.resize(size);
 		memcpy(str_data.data(), data, size);
-		s_sum = 0;
+		s_sum = 0;   //注意，校验只针对str_data部分进行，而不是整个包
 		for (int i = 0; i < str_data.size(); i++) {
 			s_sum += (BYTE)str_data[i] & 0xFF;
 		}
@@ -205,7 +205,8 @@ public:
 	}
 
 	bool getFilePath(std::string &str_path) {
-		if (m_packet.s_command == 2) {
+		//2表示获取目录文件，3表示打开文件
+		if (m_packet.s_command == 2 || m_packet.s_command == 3) {
 			str_path = m_packet.str_data;
 			return true;
 		}
