@@ -6,6 +6,8 @@
 #include "RemoteCtrl.h"
 #include "ServerSocket.h"
 #include <direct.h>  //用于支持文件命令
+#include <io.h>  //用于支持_findfirst()方法
+#include <list>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -17,8 +19,22 @@ CWinApp theApp;
 
 using namespace std;
 
+typedef struct file_info {
+    file_info() {
+        isInvalid = false;
+        isDirectory = -1;
+        hasNext = true;
+        memset(str_filename, 0, 256);
+    }
+    bool isInvalid;
+    bool isDirectory;
+    bool hasNext;  //解决文件极多，用户得不到反馈的情况。
+    char str_filename[256];
+
+
+}FILEINFO,*PFILEINFO;
 // 检查磁盘信息
-std::string makeDriverInfo() {
+int makeDriverInfo() {
     std::string result;
     for (int i = 1; i <= 26; i++) {
         if (_chdrive(i) == 0) {
@@ -32,8 +48,45 @@ std::string makeDriverInfo() {
     //CPacket((WORD)(1), result.data(), result.size());
     CPacket packet((WORD)(1), result.data(), result.size());
     CServerSocket::getInstance()->sendByte(packet);
-    std::cout << "sssssss";
-    return result;
+    return 0;
+}
+
+// 查找指定目录的文件
+int makeDirectoryInfo() {
+    std::string str_file_path;
+    if (CServerSocket::getInstance()->getFilePath(str_file_path) == false) {
+        OutputDebugString(_T("当前的命令不是获取文件列表，命令解析错误"));
+    }
+    if (_chdir(str_file_path.c_str()) != 0) {
+        FILEINFO file_info;
+        file_info.isInvalid = true;
+        file_info.isDirectory = true;
+        file_info.hasNext = false;
+        CPacket packet( 2, (const char*) &file_info, sizeof(file_info));  //找到一个直接发，而不是找到全部再发，用户体验更好
+        CServerSocket::getInstance()->sendByte(packet);
+        OutputDebugString(_T("缺少访问目标路径的权限"));
+        return -2;
+    }
+    _finddata_t fdata;
+    int hfind = 0;
+    if (hfind = _findfirst("*", &fdata) == -1) {
+        OutputDebugString(_T("没有找到任何文件"));
+        return -3;
+    }
+
+    do {
+        FILEINFO file_info;
+        file_info.isDirectory = (fdata.attrib & _A_SUBDIR !=0 );  //该属性指明是否是目录
+        memcpy(&file_info.str_filename, fdata.name, strlen(fdata.name));
+        CPacket packet(2, (const char*)&file_info, sizeof(file_info));
+        CServerSocket::getInstance()->sendByte(packet);
+    } while (!_findnext(hfind, &fdata));
+    // 处理最后一个没有发出去的文件
+    FILEINFO file_info;
+    file_info.hasNext = false;
+    CPacket packet(2, (const char*)&file_info, sizeof(file_info));
+    CServerSocket::getInstance()->sendByte(packet);
+
 }
 
 int main()
@@ -58,6 +111,8 @@ int main()
             case 1:
                 makeDriverInfo();
                 break;
+            case 2:
+                makeDirectoryInfo();
             }
             // TODO: 在此处为应用程序的行为编写代码。
             //CServerSocket* p_server = CServerSocket::getInstance();
@@ -76,7 +131,7 @@ int main()
             //        count++;
             //    }
             //    //成功初始化和接入
-            //    //p_server->dealCommand();
+                //p_server->dealCommand();
             //}
         }
     }

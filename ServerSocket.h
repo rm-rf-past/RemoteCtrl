@@ -190,7 +190,7 @@ public:
 		return -1;  //其他意外情况
 	}
 
-	// 输入原始字节发送数据
+	// 输入原始字节,发送数据
 	bool sendByte(const void* p_data, uint32_t size) {
 		if (m_server_socket == -1) return false;
 		char buffer[BUFFER_SIZE];
@@ -202,6 +202,14 @@ public:
 		if (m_server_socket == -1) return false;
 		dump(packet.data(), packet.size());
 		return send(m_client_socket, packet.data(), packet.size(), 0) == packet.size();  //这里显然有问题，packet中包含了string，没有展平
+	}
+
+	bool getFilePath(std::string &str_path) {
+		if (m_packet.s_command == 2) {
+			str_path = m_packet.str_data;
+			return true;
+		}
+		return false; //拒绝其他command非法使用该接口
 	}
 
 private:
