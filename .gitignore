@@ -1,0 +1,20 @@
+# 忽略所有层级下的 .vs 文件夹
+**/.vs/
+# 忽略所有层级下的 x64, Debug, Release 文件夹
+**/x64/
+**/Debug/
+**/Release/
+**/ipch/
+# 忽略特定的临时文件扩展名
+*.db
+*.suo
+*.user
+*.aps
+*.pdb
+*.ilk
+*.log
+*.tlog
+*.obj
+*.res
+*.recipe
+*.vsidx

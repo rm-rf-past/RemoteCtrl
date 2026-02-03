@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="RemoteCtrl/RemoteCtrl.vcxproj" Id="3d59c617-5b5e-47a7-ba2b-09199f98b295" />
+</Solution>
