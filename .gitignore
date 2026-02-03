@@ -1,20 +1,60 @@
-# 忽略所有层级下的 .vs 文件夹
-**/.vs/
-# 忽略所有层级下的 x64, Debug, Release 文件夹
-**/x64/
-**/Debug/
-**/Release/
-**/ipch/
-# 忽略特定的临时文件扩展名
-*.db
-*.suo
+## [ Visual Studio 忽略项 ]
+.vs/
+[Bb]in/
+[Oo]bj/
 *.user
-*.aps
-*.pdb
+*.suo
+*.userosscache
+*.sln.docstates
+
+## [ 编译输出 ]
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+Log/
+Logs/
+
+## [ Visual Studio 临时文件 ]
+*.bak
+*.cache
 *.ilk
 *.log
+*.pdb
+*.sbr
+*.scc
 *.tlog
-*.obj
-*.res
-*.recipe
-*.vsidx
+*.exe
+*.dll
+*.pri
+
+## [ 数据库与缓存 ]
+*.VC.db
+*.opendb
+*.db-shm
+*.db-wal
+
+## [ NuGet & 依赖 ]
+packages/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.assets.json
+
+## [ 单元测试 & 覆盖率 ]
+TestResults/
+*.sequenced.csv
+*.coverage
+
+## [ 操作系统 & 编辑器 ]
+.DS_Store
+Thumbs.db
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
