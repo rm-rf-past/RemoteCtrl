@@ -22,7 +22,8 @@ CWinApp theApp;
 
 CDialogLock dlg;
 
-uint32_t thread_id;
+uint32_t thread_id;  //锁机线程
+
 using namespace std;
 
 
@@ -238,8 +239,8 @@ int sendScreen() {
     int bit_per_pixel = GetDeviceCaps(handle_screen, BITSPIXEL);  // 获取颜色位宽
     int screen_width = GetDeviceCaps(handle_screen, HORZRES);   // 获取屏幕宽度
     int screen_height = GetDeviceCaps(handle_screen, VERTRES);  // 获取屏幕高度
-    screen.Create(screen_width, screen_height, bit_per_pixel);
-    BitBlt(screen.GetDC(), 0, 0, screen_width, screen_height, handle_screen, 0, 0, SRCCOPY);
+    screen.Create(screen_width, screen_height, bit_per_pixel);  //创建IMAGE空对象
+    BitBlt(screen.GetDC(), 0, 0, screen_width, screen_height, handle_screen, 0, 0, SRCCOPY);  // 拷贝屏幕内容到IMAGE对象
     ReleaseDC(NULL, handle_screen);
     // 测试两种格式的保存时间和大小
     //for (int i = 0; i < 10; i++) {
@@ -358,6 +359,44 @@ int unlockDevice() {
     return 0;
 }
 
+int  testConnect() {
+    CPacket packet(9999, NULL, 0);
+    CServerSocket::getInstance()->sendByte(packet);  // 收到9999命令，ack一个9999的空包
+    return 0;
+}
+
+int executeCommand(int command) {
+    int ret = 0;
+    switch (command) {
+    case 1:  //获取分区信息
+        ret = makeDriverInfo();
+        break;
+    case 2:  //获取指定目录的文件信息
+        ret = makeDirectoryInfo();
+        break;
+    case 3:  // 打开指定的文件
+        ret = runFile();
+        break;
+    case 4:  //下载文件
+        ret = download_file();
+        break;
+    case 5: //鼠标操作
+        ret = mouseEvent();
+        break;
+    case 6: //发送屏幕截图
+        ret = sendScreen();
+        break;
+    case 7:  // 锁机
+        ret = lockDevice();
+        break;
+    case 8:  //解锁
+        unlockDevice();
+        break;
+    case 9999: //连接测试
+        ret = testConnect();
+    }
+    return ret;
+}
 
 int main()
 {
@@ -376,55 +415,39 @@ int main()
         }
         else
         {
-            uint32_t command = 7;
-            switch (command) {
-            case 1:  //获取分区信息
-                makeDriverInfo();
-                break;
-            case 2:  //获取指定目录的文件信息
-                makeDirectoryInfo();
-                break;
-            case 3:  // 打开指定的文件
-                runFile();
-                break;
-            case 4:  //下载文件
-                download_file();
-                break;
-            case 5: //鼠标操作
-                mouseEvent();
-                break;
-            case 6: //发送屏幕截图
-                sendScreen();
-                break;
-            case 7:  // 锁机
-                lockDevice();
-                break;
-            case 8:  //解锁
-                unlockDevice();
-                break;
+             //TODO: 在此处为应用程序的行为编写代码。
+            CServerSocket* p_server = CServerSocket::getInstance();
+            // 初始化server socket
+            if (p_server->initSocket() == false) {
+                MessageBox(NULL, _T("socket初始化失败1"), _T("错误"), MB_OK | MB_ICONERROR);
+                exit(0);
             }
-            Sleep(2000);
-            unlockDevice();
-            system("pause"); // 让主线程停在这里
-            // TODO: 在此处为应用程序的行为编写代码。
-            //CServerSocket* p_server = CServerSocket::getInstance();
-            //int count = 0;
-            //while (p_server) {
-            //    if (p_server->initSocket() == false) {
-            //        MessageBox(NULL, _T("socket初始化失败"), _T("错误"), MB_OK | MB_ICONERROR);
-            //        exit(0);
-            //    }
-            //    if (p_server->acceptClient() == false) {
-            //        if (count >= 3) {
-            //            MessageBox(NULL, _T("多次无法接入用户，结束程序"), _T("错误"), MB_OK | MB_ICONERROR);
-            //            exit(0);
-            //        }
-            //        MessageBox(NULL, _T("接入用户失败"), _T("错误"), MB_OK | MB_ICONERROR);
-            //        count++;
-            //    }
-            //    //成功初始化和接入
-                //p_server->dealCommand();
-            //}
+            int count = 0;
+            while (p_server) {
+                // 阻塞等待用户连接
+                if (p_server->acceptClient() == false) {
+                    if (count >= 3) {
+                        MessageBox(NULL, _T("多次无法接入用户，结束程序"), _T("错误"), MB_OK | MB_ICONERROR);
+                        exit(0);
+                    }
+                    MessageBox(NULL, _T("接入用户失败"), _T("错误"), MB_OK | MB_ICONERROR);
+                    count++;
+                }
+
+                TRACE("客户端接入成功");
+                // 解析用户命令
+                int ret = p_server->dealCommand();
+                TRACE("deal command ret = ", ret);
+                // 执行用户命令
+                if (ret != -1){
+                    ret = executeCommand(ret);
+                    if (ret != 0) {
+                        TRACE("执行命令失败：%d ret=%d\r\n", p_server->GetPacket().s_command, ret);
+                    }
+                    
+                    p_server->closeClient();
+                }
+            }
         }
     }
     else

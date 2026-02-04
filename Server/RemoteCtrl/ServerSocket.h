@@ -88,45 +88,40 @@ public:
 	// 解析输出：size>0表示解析成功
 	// size表示解析出的整个包的长度，length表示body长度
 	CPacket(const BYTE* data, uint32_t &size) {
-		uint32_t start_pos = 0;
-		uint32_t invalid_byte = 0;
-		for (; invalid_byte < size; invalid_byte++) {
-			if (*(WORD*)(data+invalid_byte) == 0xFEFF) {
-				start_pos = invalid_byte;   //找到了包头的起始位置为data+start_pos
+		size_t i = 0;
+		for (; i < size; i++) {
+			if (*(WORD*)(data + i) == 0xFEFF) {
+				s_magic = *(WORD*)(data + i);
+				i += 2;
 				break;
 			}
 		}
-		// 包头不够
-		if (size - start_pos + 1 < 10)  // 10 = 2+4+2+2包头长度
-		{
+		if (i + 4 + 2 + 2 > size) {//包数据可能不全，或者包头未能全部接收到
 			size = 0;
 			return;
 		}
-
-		// 包头够,取包头元数据
-		length = *(DWORD*)(data + start_pos + 2);
-		s_command = *(WORD*)(data + start_pos + 6);
-
-		//
-		uint32_t body_size = size - start_pos - 9; //body长度为总长度-10
-		// body没接收完毕
-		if (body_size < length) {
-			size = 0;   //包不完整
+		length = *(DWORD*)(data + i); i += 4;
+		if (length + i > size) {//包未完全接收到，就返回，解析失败
+			size = 0;
 			return;
 		}
-		//body 接收完毕
-		str_data.resize(body_size);
-		memcpy(str_data.data(), data + start_pos + 10, body_size);  //即使body_size为0也可以正确处理
-		s_sum = *(WORD*)(data + start_pos + 10 + body_size);
-		DWORD sum = 0;
-		for (int i = 0; i < body_size; i++) {
-			sum += str_data[i] & 0xFF;
+		s_command = *(WORD*)(data + i); i += 2;
+		if (length > 4) {
+			str_data.resize(length - 2 - 2);
+			memcpy((void*)str_data.c_str(), data + i, length - 4);
+			i += length - 4;
 		}
-		if (s_sum == sum) {
-			size = size-invalid_byte+1;  // 解析成功，设置包的总长度。注意，无效字节也要包含为长度，因为这个长度后续用来决定缓冲区需要移除多少字节。
+		s_sum = *(WORD*)(data + i); i += 2;
+		WORD sum = 0;
+		for (size_t j = 0; j < str_data.size(); j++)
+		{
+			sum += BYTE(str_data[j]) & 0xFF;
+		}
+		if (sum == s_sum) {
+			size = i;//head2 length4 data...
 			return;
 		}
-		size = 0;  //解析失败
+		size = 0;
 	}
 
 	// 序列化方法，返回字节
@@ -195,6 +190,7 @@ public:
 		sockaddr_in client_addr;
 		int client_size = sizeof(client_addr);
 		m_client_socket = accept(m_server_socket, (sockaddr*)&client_addr, &client_size);
+		TRACE("client connected: m_client_socket = %d\n", m_client_socket);
 		if (m_client_socket < 0) {
 			return false;
 		}
@@ -202,11 +198,16 @@ public:
 	}
 
 	int dealCommand() {
-		char buffer[BUFFER_SIZE];
+		char* buffer = new char[BUFFER_SIZE];
+		memset(buffer, 0, BUFFER_SIZE);
 		uint32_t index = 0;  //index表示buffer可写入的位置
 		while (true) {
 			uint32_t len = recv(m_client_socket, buffer+index, BUFFER_SIZE-index, 0);  //0表示阻塞接收
-			if (len < 0) return -1;  // 没能构造任何包，继续尝试接收数据
+			if (len <= 0) {
+				delete[]buffer;
+				return -1;  // 没能构造任何包，继续尝试接收数据
+			}
+			TRACE("recv %d\r\n", len);
 			index += len; // 更新写入位置
 			len = index;  // 更新累积字节长度
 			//处理命令
@@ -214,17 +215,18 @@ public:
 			if (len > 0) {
 				memmove(buffer,buffer+len,BUFFER_SIZE-len); // 解析出包后，清理这个包占用的缓冲区。（只需要将缓冲区剩余字节前移）
 				index -= len;  				  // 解决len包含多个包的情况。例如index=100,len=50,意味着后50字节是下一个包的内容，下次解析
+				delete[] buffer;
 				return m_packet.s_command;
 			}
 		}
+		delete[] buffer;
 		return -1;  //其他意外情况
 	}
 
 	// 输入原始字节,发送数据
 	bool sendByte(const void* p_data, uint32_t size) {
 		if (m_server_socket == -1) return false;
-		char buffer[BUFFER_SIZE];
-		return send(m_client_socket, buffer, size, 0) == size;
+		return send(m_client_socket, (const char*)p_data, size, 0) == size;
 	}
 
 	// 输入包，发送数据
@@ -245,15 +247,25 @@ public:
 
 	bool getMouseEvent(MOUSEEVENT & mouse) {
 		if (m_packet.s_command == 5) {
-			memcpy(& mouse, m_packet.data(), sizeof(mouse));
+			memcpy(& mouse, m_packet.str_data.data(), sizeof(mouse));
 			return true;
 		}
+		return false;
+	}
+
+	CPacket& GetPacket() {
+		return m_packet;
+	}
+
+	void closeClient() {
+		closesocket(m_client_socket);
+		m_client_socket = INVALID_SOCKET;
 	}
 
 private:
 
 	CServerSocket():
-		m_client_socket(INVALID_SET_FILE_POINTER)
+		m_client_socket(INVALID_SOCKET)
 	{
 		if (initSockEnv() == FALSE) {
 			MessageBox(NULL, _T("无法初始化套接字环境"), _T("初始化错误"), MB_OK | MB_ICONERROR);
@@ -289,28 +301,28 @@ private:
 	static CHelper m_helper;
 
 	// 用于调试输出包数据 (GUI版本)
-	void dump(const char* pData, size_t nSize) {
-		if (!pData || nSize == 0) return;
+	void dump(const char* data, size_t size) {
+		if (!data || size == 0) return;
 
 		// 1. 输出头部信息
 		char headerBuffer[64];
-		snprintf(headerBuffer, sizeof(headerBuffer), "[DEBUG] Packet Dump (%zu bytes):\n", nSize);
+		snprintf(headerBuffer, sizeof(headerBuffer), "[DEBUG] Packet Dump (%zu bytes):\n", size);
 		OutputDebugStringA(headerBuffer);
 
 		// 2. 准备行缓冲 (16字节 * 3字符/字节 + 换行符 + 结束符，64字节足够)
 		char lineBuffer[128] = { 0 };
 		int offset = 0;
 
-		for (size_t i = 0; i < nSize; ++i) {
+		for (size_t i = 0; i < size; ++i) {
 			// 格式化单个字节追加到 lineBuffer
 			// 注意：必须强转 (unsigned char)，否则 0x80 以上的字节会显示为 FFFFFF80
 			int written = snprintf(lineBuffer + offset, sizeof(lineBuffer) - offset,
-				"%02X ", (int)(unsigned char)pData[i]);
+				"%02X ", (int)(unsigned char)data[i]);
 
 			if (written > 0) offset += written;
 
 			// 每 16 个字节输出一行，或者到了最后一个字节
-			if ((i + 1) % 16 == 0 || (i + 1) == nSize) {
+			if ((i + 1) % 16 == 0 || (i + 1) == size) {
 				// 追加换行
 				if (offset < sizeof(lineBuffer) - 1) {
 					lineBuffer[offset++] = '\n';
