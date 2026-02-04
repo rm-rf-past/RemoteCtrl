@@ -32,7 +32,7 @@ int makeDriverInfo() {
     std::string result;
     for (int i = 1; i <= 26; i++) {
         if (_chdrive(i) == 0) {
-            if (i != 1) {
+            if (result.size()!=0) {
                 result += ",";  // 不是第一个盘需要加分隔符
 
             }

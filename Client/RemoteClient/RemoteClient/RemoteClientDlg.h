@@ -33,4 +33,15 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnBnClickedTestButton();
+	afx_msg void OnEnChangeEdit1();
+	afx_msg void OnEnChangeIp();
+	DWORD m_server_address;
+	CString m_port;
+private:
+	//返回值：是命令号，如果小于0则是错误
+	// 客户端快捷建立连接并发送消息的接口
+	int sendCommandPacket(int nCmd, bool bAutoClose = true, BYTE* pData = NULL, size_t nLength = 0);
+public:
+	afx_msg void OnBnClickedShowFile();
+	CTreeCtrl m_tree;
 };

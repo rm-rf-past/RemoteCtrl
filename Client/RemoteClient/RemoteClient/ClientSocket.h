@@ -150,7 +150,7 @@ public:
 		memset(&serv_adr, 0, sizeof(serv_adr));
 		serv_adr.sin_family = AF_INET;
 		TRACE("addr %08X nIP %08X\r\n", inet_addr("127.0.0.1"), nIP);
-		serv_adr.sin_addr.s_addr = nIP;
+		serv_adr.sin_addr.s_addr = htonl(nIP);
 		serv_adr.sin_port = htons(nPort);
 		if (serv_adr.sin_addr.s_addr == INADDR_NONE) {
 			AfxMessageBox(_T("指定的IP地址，不存在！"));

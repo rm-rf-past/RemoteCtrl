@@ -52,6 +52,8 @@ END_MESSAGE_MAP()
 
 CRemoteClientDlg::CRemoteClientDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_REMOTECLIENT_DIALOG, pParent)
+	, m_server_address(0)
+	, m_port(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -59,6 +61,9 @@ CRemoteClientDlg::CRemoteClientDlg(CWnd* pParent /*=nullptr*/)
 void CRemoteClientDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_IPAddress(pDX, IDC_IP, m_server_address);
+	DDX_Text(pDX, IDC_PORT, m_port);
+	DDX_Control(pDX, IDC_TREE_FILE, m_tree);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
@@ -66,6 +71,7 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(ID_TEST_BUTTON, &CRemoteClientDlg::OnBnClickedTestButton)
+	ON_BN_CLICKED(IDC_SHOW_FILE, &CRemoteClientDlg::OnBnClickedShowFile)
 END_MESSAGE_MAP()
 
 
@@ -101,6 +107,10 @@ BOOL CRemoteClientDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	UpdateData();
+	m_server_address = 0x7F000001;
+	m_port = "1234";
+	UpdateData(false);
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -157,16 +167,49 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 void CRemoteClientDlg::OnBnClickedTestButton()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	CClientSocket* p_client_socket =  CClientSocket::getInstance();
-	bool ret = p_client_socket->InitSocket(inet_addr("127.0.0.1"),1234);  // TODO返回值
+	sendCommandPacket(9999);
+}
+
+int CRemoteClientDlg::sendCommandPacket(int nCmd, bool bAutoClose, BYTE* pData, size_t nLength)
+{
+	UpdateData();
+	CClientSocket* pClient = CClientSocket::getInstance();
+	bool ret = pClient->InitSocket(m_server_address, _ttoi(m_port));
 	if (!ret) {
-		AfxMessageBox(_T("网络初始化失败"));
+		AfxMessageBox(_T("网络初始化失败!"));
+		return -1;
 	}
-	else {
-		TRACE("client 网络初始化成功");
+	CPacket pack(nCmd, pData, nLength);
+	ret = pClient->Send(pack);
+	TRACE("Send ret %d\r\n", ret);
+	int cmd = pClient->DealCommand();   //客户端这里能够deal命令，是因为服务端接收每一条命令，都会返回相同命令号的空包
+	TRACE("ack:%d\r\n", cmd);
+	if (bAutoClose)
+		pClient->CloseSocket();
+	return cmd;
+}
+
+void CRemoteClientDlg::OnBnClickedShowFile()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	int ret = sendCommandPacket(1);   // 1号命令：获得逗号分隔的盘符
+	if (ret == -1) {
+		AfxMessageBox(_T("命令处理失败!!!"));
+		return;
 	}
-	CPacket packet(9999,NULL,0);
-	p_client_socket->Send(packet);
-	p_client_socket->DealCommand();
-	TRACE("ack: %d\r\n",p_client_socket->GetPacket().sCmd);
+	CClientSocket* pClient = CClientSocket::getInstance();
+	std::string drivers = pClient->GetPacket().strData;   //获取包的body
+	std::string dr;
+	m_tree.DeleteAllItems();  //清空树控件
+	for (size_t i = 0; i < drivers.size(); i++)
+	{
+		if (drivers[i] == ',') {
+			dr += ":";
+			HTREEITEM hTemp = m_tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
+			m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+			dr.clear();
+			continue;
+		}
+		dr += drivers[i];
+	}
 }
