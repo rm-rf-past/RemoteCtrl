@@ -64,6 +64,7 @@ void CRemoteClientDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_IPAddress(pDX, IDC_IP, m_server_address);
 	DDX_Text(pDX, IDC_PORT, m_port);
 	DDX_Control(pDX, IDC_TREE_FILE, m_tree);
+	DDX_Control(pDX, IDC_LIST_FILE, m_list);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
@@ -72,6 +73,7 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(ID_TEST_BUTTON, &CRemoteClientDlg::OnBnClickedTestButton)
 	ON_BN_CLICKED(IDC_SHOW_FILE, &CRemoteClientDlg::OnBnClickedShowFile)
+	ON_NOTIFY(NM_DBLCLK, IDC_TREE_FILE, &CRemoteClientDlg::OnNMDblclkTreeFile)
 END_MESSAGE_MAP()
 
 
@@ -111,6 +113,7 @@ BOOL CRemoteClientDlg::OnInitDialog()
 	m_server_address = 0x7F000001;
 	m_port = "1234";
 	UpdateData(false);
+	m_tree.ModifyStyle(0, TVS_HASLINES | TVS_SHOWSELALWAYS | TVS_LINESATROOT | TVS_NOSCROLL | TVS_TRACKSELECT | TVS_HASBUTTONS); // | TVS_HASBUTTONS | TVS_SINGLEEXPAND 
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -170,7 +173,17 @@ void CRemoteClientDlg::OnBnClickedTestButton()
 	sendCommandPacket(9999);
 }
 
-int CRemoteClientDlg::sendCommandPacket(int nCmd, bool bAutoClose, BYTE* pData, size_t nLength)
+//1 查看磁盘分区
+//2 查看指定目录下的文件
+//3 打开文件
+//4 下载文件
+//9 删除文件
+//5 鼠标操作
+//6 发送屏幕内容
+//7 锁机
+//8 解锁
+//1981 测试连接
+int CRemoteClientDlg::sendCommandPacket(int nCmd, BOOL bAutoClose, BYTE* pData, size_t nLength)
 {
 	UpdateData();
 	CClientSocket* pClient = CClientSocket::getInstance();
@@ -184,7 +197,7 @@ int CRemoteClientDlg::sendCommandPacket(int nCmd, bool bAutoClose, BYTE* pData, 
 	TRACE("Send ret %d\r\n", ret);
 	int cmd = pClient->DealCommand();   //客户端这里能够deal命令，是因为服务端接收每一条命令，都会返回相同命令号的空包
 	TRACE("ack:%d\r\n", cmd);
-	if (bAutoClose)
+	if (bAutoClose)   // 在获取多条文件信息的时候，连接不应该关闭，所以autoClose来控制
 		pClient->CloseSocket();
 	return cmd;
 }
@@ -205,11 +218,83 @@ void CRemoteClientDlg::OnBnClickedShowFile()
 	{
 		if (drivers[i] == ',') {
 			dr += ":";
-			HTREEITEM hTemp = m_tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
-			m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+			HTREEITEM hTemp = m_tree.InsertItem(CString(dr.c_str()), TVI_ROOT, TVI_LAST);  // 在树节点的尾部，不断插入分区
+			m_tree.InsertItem(NULL, hTemp, TVI_LAST);  // 给分区插入一个空孩子，表示这是一个目录
 			dr.clear();
 			continue;
 		}
 		dr += drivers[i];
 	}
+}
+
+void CRemoteClientDlg::LoadFileInfo()
+{
+	CPoint ptMouse;
+	GetCursorPos(&ptMouse);   // 获取鼠标位置，这是全局坐标
+	m_tree.ScreenToClient(&ptMouse);  // 转换全局坐标为对话框相对坐标
+	HTREEITEM hTreeSelected = m_tree.HitTest(ptMouse, 0);   // 坐标检测，检查ptMouse是否在树控件范围
+	if (hTreeSelected == NULL)  // 处理在树控件范围内，什么都没点到的情况（即no item selected）
+		return;
+	if (m_tree.GetChildItem(hTreeSelected) == NULL)   // 点击的节点没有孩子节点（注意，所有的目录文件都至少有一个空孩子），也不需要展开
+		return;
+	// 需要展开选中节点的情况
+	// 首先关闭其他可能展开的节点
+	DeleteTreeChildrenItem(hTreeSelected);   // 实现方式：删除所有子节点
+	CString strPath = GetPath(hTreeSelected);    // 获取点击节点的路径
+	TRACE("===================%s", strPath);
+	int nCmd = sendCommandPacket(2, false, (BYTE*)(LPCTSTR)strPath, strPath.GetLength());   // 根据路径查询节点目录下的文件
+	PFILEINFO pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().strData.c_str();  // 拿到第一个文件结构体
+	TRACE("===================%s", pInfo->szFileName);
+	CClientSocket* pClient = CClientSocket::getInstance();
+	int Count = 0;
+	while (pInfo->HasNext) {
+		TRACE("[%s] isdir %d\r\n", pInfo->szFileName, pInfo->IsDirectory);
+		if (pInfo->IsDirectory) {
+			if (CString(pInfo->szFileName) == "." || (CString(pInfo->szFileName) == ".."))  // 对于双击两个特殊符号，应该不做处理，继续循环
+			{
+				int cmd = pClient->DealCommand();
+				TRACE("ack:%d\r\n", cmd);
+				if (cmd < 0)break;
+				pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().strData.c_str();
+				continue;
+			}
+			HTREEITEM hTemp = m_tree.InsertItem(CString(pInfo->szFileName), hTreeSelected, TVI_LAST);
+			m_tree.InsertItem(CString(""), hTemp, TVI_LAST);
+		}
+		Count++;
+		int cmd = pClient->DealCommand();
+		//TRACE("ack:%d\r\n", cmd);
+		if (cmd < 0)break;
+		pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().strData.c_str();
+	}
+	pClient->CloseSocket();
+	TRACE("Count = %d\r\n", Count);
+}
+
+void CRemoteClientDlg::DeleteTreeChildrenItem(HTREEITEM h_tree)
+{
+	HTREEITEM hSub = NULL;
+	do {
+		hSub = m_tree.GetChildItem(h_tree);
+		if (hSub != NULL)m_tree.DeleteItem(hSub);
+	} while (hSub != NULL);
+}
+
+
+CString CRemoteClientDlg::GetPath(HTREEITEM hTree)
+{
+	CString strRet, strTmp;
+	do {
+		strTmp = m_tree.GetItemText(hTree);
+		strRet = strTmp + '\\' + strRet;
+		hTree = m_tree.GetParentItem(hTree);
+	} while (hTree != NULL);   // 向上迭代，例如展开为C:/a/b/c/。那么要获取c所在的目录，需要每次添加自己的父母str_tmp
+	return strRet;
+}
+
+void CRemoteClientDlg::OnNMDblclkTreeFile(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	// TODO: 在此添加控件通知处理程序代码
+	*pResult = 0;
+	LoadFileInfo();
 }

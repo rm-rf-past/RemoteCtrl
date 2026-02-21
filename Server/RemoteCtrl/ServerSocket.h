@@ -11,16 +11,15 @@ typedef struct file_info {
 		isInvalid = false;
 		isDirectory = -1;
 		hasNext = true;
-		memset(str_filename, 0, 256);
+		memset(str_filename, 0, sizeof(str_filename));
 	}
-	bool isInvalid;
-	bool isDirectory;
-	bool hasNext;  //解决文件极多，用户得不到反馈的情况。
+	BOOL isInvalid;
+	BOOL isDirectory;
+	BOOL hasNext;  //解决文件极多，用户得不到反馈的情况。
 	char str_filename[256];
 
 
 }FILEINFO, * PFILEINFO;
-
 // 定义鼠标事件
 typedef struct mouse_event {
 	mouse_event() {
@@ -34,6 +33,8 @@ typedef struct mouse_event {
 	POINT pt;  //坐标，包含long X/Y
 }MOUSEEVENT, * PMOUSEEVENT;
 
+#pragma pack(push)
+#pragma pack(1)
 class CPacket {
 
 public:
@@ -146,7 +147,7 @@ public:
 		return m_raw_data.size();
 	}
 };
-
+#pragma pack(pop)
 
 class CServerSocket
 {

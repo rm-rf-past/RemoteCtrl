@@ -1,0 +1,30 @@
+{
+	"_type": "Project",
+	"_id": "AAAAAAFF+h6SjaM2Hec=",
+	"name": "远控系统设计",
+	"ownedElements": [
+		{
+			"_type": "UMLModel",
+			"_id": "AAAAAAFF+qBWK6M3Z8Y=",
+			"_parent": {
+				"$ref": "AAAAAAFF+h6SjaM2Hec="
+			},
+			"name": "Model",
+			"ownedElements": [
+				{
+					"_type": "UMLClassDiagram",
+					"_id": "AAAAAAFF+qBtyKM79qY=",
+					"_parent": {
+						"$ref": "AAAAAAFF+qBWK6M3Z8Y="
+					},
+					"name": "远控系统设计",
+					"defaultDiagram": true
+				}
+			]
+		}
+	],
+	"documentation": "系统包括远控服务端和客户端。\n服务器支持：\n1.文件操作（查询，删除，下载）\n2.屏幕操作（鼠标，锁机，监视）\n客户端支持\n1.加解锁\n2.文件和屏幕操作",
+	"author": "王建宇",
+	"company": "广西大学",
+	"documentVersion": 1
+}

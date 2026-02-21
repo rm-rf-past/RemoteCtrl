@@ -40,8 +40,14 @@ public:
 private:
 	//返回值：是命令号，如果小于0则是错误
 	// 客户端快捷建立连接并发送消息的接口
-	int sendCommandPacket(int nCmd, bool bAutoClose = true, BYTE* pData = NULL, size_t nLength = 0);
+	int sendCommandPacket(int nCmd, BOOL bAutoClose = true, BYTE* pData = NULL, size_t nLength = 0);
+	void LoadFileInfo();
+	void DeleteTreeChildrenItem(HTREEITEM h_tree);
+	CString CRemoteClientDlg::GetPath(HTREEITEM hTree);
 public:
 	afx_msg void OnBnClickedShowFile();
 	CTreeCtrl m_tree;
+	afx_msg void OnNMDblclkTreeFile(NMHDR* pNMHDR, LRESULT* pResult);
+	// 显示文件
+	CListCtrl m_list;
 };

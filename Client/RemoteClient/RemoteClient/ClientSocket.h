@@ -131,6 +131,7 @@ typedef struct file_info {
 	char szFileName[256];//ÎÄ¼þÃû
 }FILEINFO, * PFILEINFO;
 
+
 std::string GetErrInfo(int wsaErrCode);
 void Dump(BYTE* pData, size_t nSize);
 class CClientSocket
@@ -142,7 +143,7 @@ public:
 		}
 		return m_instance;
 	}
-	bool InitSocket(int nIP, int nPort) {
+	BOOL InitSocket(int nIP, int nPort) {
 		if (m_sock != INVALID_SOCKET) CloseSocket();
 		m_sock = socket(PF_INET, SOCK_STREAM, 0);
 		if (m_sock == -1)return false;
@@ -192,23 +193,23 @@ public:
 		return -1;
 	}
 
-	bool Send(const char* pData, int nSize) {
+	BOOL Send(const char* pData, int nSize) {
 		if (m_sock == -1)return false;
 		return send(m_sock, pData, nSize, 0) > 0;
 	}
-	bool Send(CPacket& pack) {
+	BOOL Send(CPacket& pack) {
 		TRACE("m_sock = %d\r\n", m_sock);
 		if (m_sock == -1)return false;
 		return send(m_sock, pack.Data(), pack.Size(), 0) > 0;
 	}
-	bool GetFilePath(std::string& strPath) {
+	BOOL GetFilePath(std::string& strPath) {
 		if ((m_packet.sCmd >= 2) && (m_packet.sCmd <= 4)) {
 			strPath = m_packet.strData;
 			return true;
 		}
 		return false;
 	}
-	bool GetMouseEvent(MOUSEEV& mouse) {
+	BOOL GetMouseEvent(MOUSEEV& mouse) {
 		if (m_packet.sCmd == 5) {
 			memcpy(&mouse, m_packet.strData.c_str(), sizeof(MOUSEEV));
 			return true;

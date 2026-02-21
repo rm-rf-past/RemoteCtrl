@@ -50,11 +50,10 @@ int makeDirectoryInfo() {
     std::string str_file_path;
     if (CServerSocket::getInstance()->getFilePath(str_file_path) == false) {
         OutputDebugString(_T("当前的命令不是获取文件列表，命令解析错误"));
+        return -1;
     }
     if (_chdir(str_file_path.c_str()) != 0) {
         FILEINFO file_info;
-        file_info.isInvalid = true;
-        file_info.isDirectory = true;
         file_info.hasNext = false;
         CPacket packet( 2, (const char*) &file_info, sizeof(file_info));  //找到一个直接发，而不是找到全部再发，用户体验更好
         CServerSocket::getInstance()->sendByte(packet);
@@ -65,9 +64,14 @@ int makeDirectoryInfo() {
     int hfind = 0;
     if ((hfind = _findfirst("*", &fdata)) == -1) {
         OutputDebugString(_T("没有找到任何文件"));
+        FILEINFO finfo;
+        finfo.hasNext = FALSE;
+        CPacket pack(2, (const char*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->sendByte(pack);
         return -3;
     }
 
+    int count = 0;
     do {
         FILEINFO file_info;
         file_info.isDirectory = (fdata.attrib & _A_SUBDIR) !=0;  //该属性指明是否是目录
@@ -75,12 +79,13 @@ int makeDirectoryInfo() {
         CPacket packet(2, (const char*)&file_info, sizeof(file_info));
         CServerSocket::getInstance()->sendByte(packet);
     } while (!_findnext(hfind, &fdata));
+    TRACE("server: count = %d\r\n", count);
     // 处理最后一个没有发出去的文件
     FILEINFO file_info;
     file_info.hasNext = false;
     CPacket packet(2, (const char*)&file_info, sizeof(file_info));
     CServerSocket::getInstance()->sendByte(packet);
-
+    return 0;
 }
 
 // 打开文件
@@ -100,7 +105,7 @@ int download_file() {
     FILE* p_file = NULL;
     errno_t err = fopen_s(&p_file,str_file_path.c_str(), "rb");  // fopen_s给文件打开到一半又失败的情况打补丁（常见于多进程环境）
     if (err != -1) {
-        CPacket packet(4, (const char*)&data, 8);  //告知长度为0
+        CPacket packet(4, (const char*)&data, 8);  //告知长度为0，相当于结束符
         CServerSocket::getInstance()->sendByte(packet);
         return -1;
     }
@@ -121,7 +126,7 @@ int download_file() {
         } while (read_length >= 1024);  //小于1024说明是文件末尾，恰好退出
         fclose(p_file);
     }
-    CPacket packet(4, NULL, 0); //不清楚为什么这里要发个0包。视频可能为了防止文件传一半失败/文件本身为空，相当于一个结束符。
+    CPacket packet(4, NULL, 0); //视频可能为了防止文件传一半失败/文件本身为空，相当于一个结束符。
     CServerSocket::getInstance()->sendByte(packet);
 
     return 0;
